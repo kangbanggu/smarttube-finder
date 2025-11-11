@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTube Finder</title>
+<style>
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: #f5f6fa;
+  padding: 15px;
+  color: #333;
+}
+h1 {
+  text-align: center;
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+.card {
+  background: #fff;
+  padding: 15px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+img {
+  width: 100%;
+  border-radius: 8px;
+}
+.search-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+input, select, button {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
+button {
+  background: #007bff;
+  color: white;
+  font-weight: bold;
+}
+.results {
+  display: flex;
+  flex-direction: column;
+}
+</style>
+</head>
+<body>
+<h1>🔎 SmartTube Finder</h1>
+
+<div class="search-box">
+  <input id="searchQuery" type="text" placeholder="검색어를 입력하세요 (예: 복지 사연)">
+  <input id="minSubs" type="number" placeholder="최소 구독자 수">
+  <input id="maxSubs" type="number" placeholder="최대 구독자 수">
+  <input id="minViews" type="number" placeholder="최소 조회수">
+  <input id="maxViews" type="number" placeholder="최대 조회수">
+  <select id="uploadDate">
+    <option value="">업로드 시기 전체</option>
+    <option value="thisYear">올해 업로드</option>
+  </select>
+  <button onclick="searchYouTube()">검색하기</button>
+</div>
+
+<div id="results" class="results"></div>
+
+<script>
+const API_KEY = "YOUR_API_KEY_HERE"; // 🔒 여기에 본인 유튜브 API 키 입력
+
+async function searchYouTube() {
+  const query = document.getElementById("searchQuery").value;
+  const minSubs = Number(document.getElementById("minSubs").value);
+  const maxSubs = Number(document.getElementById("maxSubs").value);
+  const minViews = Number(document.getElementById("minViews").value);
+  const maxViews = Number(document.getElementById("maxViews").value);
+  const uploadFilter = document.getElementById("uploadDate").value;
+  const resultsDiv = document.getElementById("results");
+  resultsDiv.innerHTML = "🔍 검색 중입니다...";
+
+  try {
+    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(query)}&key=${API_KEY}`;
+    if (uploadFilter === "thisYear") {
+      const startOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString();
+      searchUrl += `&publishedAfter=${startOfYear}`;
+    }
+
+    const res = await fetch(searchUrl);
+    const data = await res.json();
+
+    resultsDiv.innerHTML = "";
+
+    for (const item of data.items) {
+      const videoId = item.id.videoId;
+      const snippet = item.snippet;
+
+      // 영상 통계 가져오기
+      const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoId}&key=${API_KEY}`);
+      const statsData = await statsRes.json();
+      const stats = statsData.items[0].statistics;
+      const channelId = statsData.items[0].snippet.channelId;
+
+      // 채널 정보 가져오기
+      const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${API_KEY}`);
+      const channelData = await channelRes.json();
+      const subs = Number(channelData.items[0].statistics.subscriberCount);
+      const views = Number(stats.viewCount);
+
+      // 필터 적용
+      if ((minSubs && subs < minSubs) || (maxSubs && subs > maxSubs) ||
+          (minViews && views < minViews) || (maxViews && views > maxViews)) continue;
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <img src="${snippet.thumbnails.medium.url}" alt="썸네일">
+        <h3>${snippet.title}</h3>
+        <p>📺 채널: ${snippet.channelTitle}</p>
+        <p>👥 구독자: ${subs.toLocaleString()}명 | 👁 조회수: ${views.toLocaleString()}회</p>
+        <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank">유튜브에서 보기 ▶️</a>
+      `;
+      resultsDiv.appendChild(card);
+    }
+
+    if (!resultsDiv.innerHTML) {
+      resultsDiv.innerHTML = "⚠️ 조건에 맞는 결과가 없습니다.";
+    }
+  } catch (err) {
+    console.error(err);
+    resultsDiv.innerHTML = "❌ 오류가 발생했습니다. API 키나 네트워크를 확인해주세요.";
+  }
+}
+</script>
+</body>
+</html>
