@@ -1,138 +1,125 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SmartTube Finder</title>
-<style>
-body {
-  font-family: 'Noto Sans KR', sans-serif;
-  background: #f5f6fa;
-  padding: 15px;
-  color: #333;
-}
-h1 {
-  text-align: center;
-  font-size: 22px;
-  margin-bottom: 20px;
-}
-.card {
-  background: #fff;
-  padding: 15px;
-  margin-bottom: 12px;
-  border-radius: 12px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-img {
-  width: 100%;
-  border-radius: 8px;
-}
-.search-box {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-input, select, button {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-}
-button {
-  background: #007bff;
-  color: white;
-  font-weight: bold;
-}
-.results {
-  display: flex;
-  flex-direction: column;
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube 채널 탐색기</title>
+  <style>
+    body { font-family: "Noto Sans KR", sans-serif; background:#fafafa; color:#222; padding:20px; }
+    h1 { text-align:center; }
+    .filters { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+    .filters input, select, button { padding:8px; border-radius:8px; border:1px solid #ccc; }
+    .filters label { font-weight:600; margin-top:4px; }
+    .results { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; }
+    .card { background:white; border-radius:12px; box-shadow:0 2px 5px rgba(0,0,0,0.1); padding:12px; }
+    .card img { width:100%; border-radius:8px; }
+    .card h3 { margin:8px 0 4px; font-size:1.1em; }
+    .card p { font-size:0.9em; color:#555; }
+    .meta { font-size:0.85em; color:#333; margin-top:6px; }
+  </style>
 </head>
 <body>
-<h1>🔎 SmartTube Finder</h1>
+  <h1>📊 유튜브 래퍼런스 채널 탐색기</h1>
+  
+  <div class="filters">
+    <label>검색어</label>
+    <input type="text" id="query" placeholder="예: 복지 사연, 패션, 건강 등">
+    
+    <label>조회수 범위</label>
+    <div><input type="number" id="minViews" placeholder="최소"> ~ <input type="number" id="maxViews" placeholder="최대"></div>
+    
+    <label>구독자 범위</label>
+    <div><input type="number" id="minSubs" placeholder="최소"> ~ <input type="number" id="maxSubs" placeholder="최대"></div>
+    
+    <label>업로드 시기</label>
+    <select id="uploadDate">
+      <option value="">전체</option>
+      <option value="today">오늘</option>
+      <option value="week">최근 1주</option>
+      <option value="month">이번 달</option>
+      <option value="3months">3개월</option>
+      <option value="6months">6개월</option>
+      <option value="year">올해</option>
+    </select>
+    
+    <button onclick="search()">🔍 검색하기</button>
+  </div>
+  
+  <div id="results" class="results"></div>
+  
+  <script>
+    const apiKey = "AIzaSyBMA6UbKczjPJkqExjd4_evvq3nUz-Agi8"; // ← 여기에 본인 유튜브 API 키 입력
 
-<div class="search-box">
-  <input id="searchQuery" type="text" placeholder="검색어를 입력하세요 (예: 복지 사연)">
-  <input id="minSubs" type="number" placeholder="최소 구독자 수">
-  <input id="maxSubs" type="number" placeholder="최대 구독자 수">
-  <input id="minViews" type="number" placeholder="최소 조회수">
-  <input id="maxViews" type="number" placeholder="최대 조회수">
-  <select id="uploadDate">
-    <option value="">업로드 시기 전체</option>
-    <option value="thisYear">올해 업로드</option>
-  </select>
-  <button onclick="searchYouTube()">검색하기</button>
-</div>
-
-<div id="results" class="results"></div>
-
-<script>
-const API_KEY = "AIzaSyBMA6UbKczjPJkqExjd4_evvq3nUz-Agi8"; // 🔒 여기에 본인 유튜브 API 키 입력
-
-async function searchYouTube() {
-  const query = document.getElementById("searchQuery").value;
-  const minSubs = Number(document.getElementById("minSubs").value);
-  const maxSubs = Number(document.getElementById("maxSubs").value);
-  const minViews = Number(document.getElementById("minViews").value);
-  const maxViews = Number(document.getElementById("maxViews").value);
-  const uploadFilter = document.getElementById("uploadDate").value;
-  const resultsDiv = document.getElementById("results");
-  resultsDiv.innerHTML = "🔍 검색 중입니다...";
-
-  try {
-    let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(query)}&key=${API_KEY}`;
-    if (uploadFilter === "thisYear") {
-      const startOfYear = new Date(new Date().getFullYear(), 0, 1).toISOString();
-      searchUrl += `&publishedAfter=${startOfYear}`;
+    function getPublishedAfter(value) {
+      const now = new Date();
+      switch(value) {
+        case "today": now.setDate(now.getDate() - 1); break;
+        case "week": now.setDate(now.getDate() - 7); break;
+        case "month": now.setMonth(now.getMonth() - 1); break;
+        case "3months": now.setMonth(now.getMonth() - 3); break;
+        case "6months": now.setMonth(now.getMonth() - 6); break;
+        case "year": now.setFullYear(now.getFullYear() - 1); break;
+        default: return null;
+      }
+      return now.toISOString();
     }
 
-    const res = await fetch(searchUrl);
-    const data = await res.json();
+    async function search() {
+      const q = document.getElementById('query').value.trim();
+      const minViews = Number(document.getElementById('minViews').value) || 0;
+      const maxViews = Number(document.getElementById('maxViews').value) || Infinity;
+      const minSubs = Number(document.getElementById('minSubs').value) || 0;
+      const maxSubs = Number(document.getElementById('maxSubs').value) || Infinity;
+      const uploadDate = document.getElementById('uploadDate').value;
 
-    resultsDiv.innerHTML = "";
+      if (!q) return alert("검색어를 입력해주세요!");
 
-    for (const item of data.items) {
-      const videoId = item.id.videoId;
-      const snippet = item.snippet;
+      const publishedAfter = getPublishedAfter(uploadDate);
+      let searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(q)}&key=${apiKey}`;
+      if (publishedAfter) searchUrl += `&publishedAfter=${publishedAfter}`;
+      
+      const searchRes = await fetch(searchUrl);
+      const searchData = await searchRes.json();
 
-      // 영상 통계 가져오기
-      const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoId}&key=${API_KEY}`);
-      const statsData = await statsRes.json();
-      const stats = statsData.items[0].statistics;
-      const channelId = statsData.items[0].snippet.channelId;
+      const videoIds = searchData.items.map(i => i.id.videoId).join(',');
+      const detailsUrl = `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&key=${apiKey}`;
+      const detailsRes = await fetch(detailsUrl);
+      const detailsData = await detailsRes.json();
 
-      // 채널 정보 가져오기
-      const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${API_KEY}`);
-      const channelData = await channelRes.json();
-      const subs = Number(channelData.items[0].statistics.subscriberCount);
-      const views = Number(stats.viewCount);
+      const results = document.getElementById('results');
+      results.innerHTML = "";
 
-      // 필터 적용
-      if ((minSubs && subs < minSubs) || (maxSubs && subs > maxSubs) ||
-          (minViews && views < minViews) || (maxViews && views > maxViews)) continue;
+      for (const video of detailsData.items) {
+        const stats = video.statistics;
+        const snippet = video.snippet;
+        const views = Number(stats.viewCount || 0);
+        const channelId = snippet.channelId;
 
-      const card = document.createElement("div");
-      card.className = "card";
-      card.innerHTML = `
-        <img src="${snippet.thumbnails.medium.url}" alt="썸네일">
-        <h3>${snippet.title}</h3>
-        <p>📺 채널: ${snippet.channelTitle}</p>
-        <p>👥 구독자: ${subs.toLocaleString()}명 | 👁 조회수: ${views.toLocaleString()}회</p>
-        <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank">유튜브에서 보기 ▶️</a>
-      `;
-      resultsDiv.appendChild(card);
+        const channelRes = await fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelId}&key=${apiKey}`);
+        const channelData = await channelRes.json();
+        const subs = Number(channelData.items[0]?.statistics?.subscriberCount || 0);
+
+        if (views < minViews || views > maxViews || subs < minSubs || subs > maxSubs) continue;
+        const efficiency = subs > 0 ? (views / subs).toFixed(2) : "N/A";
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <img src="${snippet.thumbnails.medium.url}" alt="썸네일">
+          <h3>${snippet.title}</h3>
+          <p>${snippet.description || '설명 없음'}</p>
+          <div class="meta">
+            📺 채널: ${snippet.channelTitle}<br>
+            👁️ 조회수: ${views.toLocaleString()}<br>
+            👥 구독자: ${subs.toLocaleString()}<br>
+            ⚡ 효율: ${efficiency}<br>
+            🗓️ 업로드: ${new Date(snippet.publishedAt).toLocaleDateString()}
+          </div>
+          <a href="https://www.youtube.com/watch?v=${video.id}" target="_blank">➡️ 영상 보기</a>
+        `;
+        results.appendChild(card);
+      }
     }
-
-    if (!resultsDiv.innerHTML) {
-      resultsDiv.innerHTML = "⚠️ 조건에 맞는 결과가 없습니다.";
-    }
-  } catch (err) {
-    console.error(err);
-    resultsDiv.innerHTML = "❌ 오류가 발생했습니다. API 키나 네트워크를 확인해주세요.";
-  }
-}
-</script>
+  </script>
 </body>
 </html>
